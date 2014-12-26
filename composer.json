@@ -1,0 +1,30 @@
+{
+	"name" : "access-manager/am-invoices",
+	"Description" : "This is a dependecy module for Access Manager to handle invoice generation",
+	"license" : "MIT",
+	"authors" : [
+			{
+				"name" : "Rahul Makhija",
+				"email" : "rahulmkhj@gmail.com"
+			}
+		],
+	"require" : {
+		"php" : ">=5.4",
+		"illuminate/database" : "*",
+		"symfony/console"	: "*",
+		"symfony/process"	: "*"
+		},
+	"autoload" : {
+			"psr-4" : {
+				"AccessManager\\Invoices\\" : "src"
+				},
+			"files" : [
+				"src/Helpers/Helpers.php",
+				"src/Helpers/Constants.php"
+			]
+		},
+	"config": {
+		"preferred-install": "dist"
+	},
+	"minimum-stability": "stable"
+}
