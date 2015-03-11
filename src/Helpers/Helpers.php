@@ -1,12 +1,15 @@
 <?php
 
-function pr($array)
-{
-	echo "<pre>";
-	print_r($array);
-	echo "</pre>";
-	exit;
+if( ! function_exists('pr') ) {
+	function pr($array)
+	{
+		echo "<pre>";
+		print_r($array);
+		echo "</pre>";
+		exit;
+	}	
 }
+
 
 function isValidDate($date)
 {
