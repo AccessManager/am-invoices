@@ -2,24 +2,23 @@
 namespace AccessManager\Invoices;
 use Illuminate\Database\Capsule\Manager as DB;
 use AccessManager\Invoices\Helpers\Database;
-use AccessManager\Invoices\Billable\NewInvoicePlan;
 use AccessManager\Invoices\Billable\ActivePlan;
 use AccessManager\Invoices\Billable\ChangedPlan;
 use AccessManager\Invoices\Billable\RecurringProduct;
 use AccessManager\Invoices\Billable\NonRecurringProduct;
+use AccessManager\Invoices\Billable\ChangedRecurringProduct;
 use Carbon\Carbon;
 use Exception;
 
 class NewInvoice {
 
-	private $account;
+	public $account;
 	private $invoiceId 				= FALSE;
 	private $startDate 				= NULL;
 	private $stopDate 				= NULL;
 	private $activePlan 			= NULL;
 	private $changedPlans 			= [];
 	private $billablePlans 			= [];
-	private $billableProducts 		= [];
 
 	private function _fetchActivePlan()
 	{
@@ -35,86 +34,90 @@ class NewInvoice {
 
 	private function _fetchChangedPlans()
 	{
-		$q = DB::table('ap_change_history as h')
-				->where('h.user_id',$this->account->user_id)
-				->orderby('h.from_date','ASC')
-				->select('h.from_date','h.to_date','h.plan_name','h.price');
-		if( $this->account->billed_till != NULL ) {
-			$q->where('h.to_date','>',$this->account->billed_till);
+		if( empty($this->changedPlans) ) {
+			$q = DB::table('ap_change_history as h')
+					->where('h.user_id',$this->account->user_id)
+					->orderby('h.from_date','ASC')
+					->select('h.id','h.from_date','h.to_date','h.plan_name','h.price','h.tax_rate');
+			if( $this->account->last_billed_on != NULL ) {
+				$q->where('h.from_date','>',$this->account->last_billed_on);
+			}
+			$plans = $q->get();
+			echo "Fetched Changed Plans.";
+	 		print_r($plans);
+			if( $plans != NULL )
+				$this->changedPlans = $plans;
 		}
-
-		$plans = $q->get();
- 
-		if( $plans != NULL )
-			$this->changedPlans = $plans;
 	}
 
-	private function _fetchProducts()
+	private function _fetchLastInvoiceActivePlan()
 	{
-		$this->_fetchRecurringProducts();
-		$this->_fetchNonRecurringProducts();
-	}
+		$lastBillActivePlan = DB::table( 'ap_invoice_plans as p' )
+								->join('ap_invoices as i','i.id','=','p.invoice_id')
+								->where('i.user_id', $this->account->user_id)
+								->where( 'invoice_id', '<', $this->invoiceId )
+								->orderby( 'p.billed_till','DESC' )
+								->select( 'p.billed_from', 'p.billed_till','p.rate' )
+								->first();
 
-	private function _fetchRecurringProducts()
-	{
-		$q = DB::table('ap_user_products as p')
-						->where('is_recurring', RECURRING)
-						->where('user_id', $this->account->user_id)
-						->select('p.name','p.assigned_on','p.expiry','p.is_recurring'
-								,'p.price','p.taxable','p.tax_rate');
-
-		if( isValidDate($this->account->last_billed_on)) {
-			$q->where('expiry','>',$this->account->last_billed_on);
-		}
-
-		$products = $q->get();
-		
-		if ( $products != NULL )
-			foreach($products as $product )
-				$this->billableProducts[] = new RecurringProduct($product, $this);
-	}
-
-	private function _fetchNonRecurringProducts()
-	{
-		$q = DB::table('ap_user_products as p')
-					->where('is_recurring', NON_RECURRING)
-					->where('user_id', $this->account->user_id)
-					->select('p.name','p.assigned_on','p.expiry','p.is_recurring'
-							,'p.price','p.taxable','p.tax_rate');
-
-		if( isValidDate($this->account->last_billed_on) ) {
-			$q->where('assigned_on', '>', $this->account->last_billed_on );
-		}
-		$products = $q->get();
-
-		if ( $products != NULL )
-			foreach($products as $product )
-				$this->billableProducts[] = new NonRecurringProduct($product, $this);
+		return $lastBillActivePlan;
 	}
 
 	public function addPlans()
 	{
 		$this->_fetchActivePlan();
-		$this->billablePlans[] = new ActivePlan($this->activePlan, $this);
+		$lastBillActivePlan = $this->_fetchLastInvoiceActivePlan();
+
+		$this->billablePlans[] = new ActivePlan($this->activePlan, $this, $lastBillActivePlan );
 		$assignedOn = new Carbon($this->activePlan->assigned_on);
-		$lastBilledTill = new Carbon($this->account->billed_till);
-		if( $assignedOn > $lastBilledTill ) {
+		$lastBilledOn = new Carbon($this->account->last_billed_on);
+		if( $assignedOn > $lastBilledOn ) {
 			$this->_fetchChangedPlans();
 			foreach($this->changedPlans as $plan)
-				$this->billablePlans[] = new ChangedPlan( $plan, $this );
+				$this->billablePlans[] = new ChangedPlan( $plan, $this, $lastBillActivePlan );
 		}
 		foreach($this->billablePlans as $plan) {
 			$plan->addToInvoice();
 		}
 	}
 
+	public function applyAdjustments()
+	{
+		$last_bill_plan = DB::table( 'ap_invoice_plans as p' )
+								->join('ap_invoices as i','i.id','=','p.invoice_id')
+								->where('i.user_id', $this->account->user_id)
+								->where( 'invoice_id', '<', $this->invoiceId )
+								->orderby( 'p.billed_till','DESC' )
+								->select( 'p.billed_from', 'p.billed_till','p.rate' )
+								->first();
+
+		//if the previous bill doesnot exists, simply return. No adjustments applied.
+		if( $last_bill_plan == NULL )		return;
+
+		//apply discount based on active service plan.
+		$discount = new PlanDiscount( $this->activePlan, $last_bill_plan, $this->account );
+		$discount->apply();
+
+		//fetch changed plans to calculate & apply discounts.
+		$changedPlans = DB::table('ap_change_history as h')
+								->where('h.user_id',$this->account->user_id)
+								->orderby('h.from_date','ASC')
+								->select('h.id','h.from_date','h.to_date','h.plan_name','h.price','h.tax_rate')
+								->get();
+
+		// apply discounts if the query returned results.
+		if( count($changedPlans) )
+		foreach( $changedPlans as $plan) {
+			$discount = new PlanDiscount( $plan, $last_bill_plan, $this );
+			$discount->apply();
+		}
+	}
+
 	public function addProducts()
 	{
-		$this->_fetchProducts();
-
-		foreach( $this->billableProducts as $product ) {
+		$products = Product::getInvoiceableProducts( $this->account, $this );
+		foreach( $products as $product )
 			$product->addToInvoice();
-		}
 	}
 
 	public function finalize()
@@ -126,38 +129,51 @@ class NewInvoice {
 					'billed_till'		=>		$this->invoiceStopDate(),
 				]);
 		$cr_row = DB::table('ap_transactions as t')
-				->where('user_id', $this->account->user_id)
-				->where('type','cr')
-				->select(DB::raw("sum(amount) as amount"))
-				->first();
-		$credited = $cr_row->amount;
+					->where('user_id', $this->account->user_id)
+					->where('type','cr')
+					// ->skip(1)
+					->orderby('id','DESC')
+					->select(DB::raw("sum(amount) as amount"))
+					->first();
+		// $credited = $cr_row->amount;
 
 		$dr_row = DB::table('ap_transactions as t')
-				->where('user_id', $this->account->user_id)
-				->where('type','dr')
-				->select(DB::raw("sum(amount) as amount"))
-				->first();
-		$debited = $dr_row->amount;
-		$balance = $debited - $credited;
-
+					->where('user_id', $this->account->user_id)
+					->where('type','dr')
+					->orderby('id','DESC')
+					// ->skip(1)
+					->select(DB::raw("sum(amount) as amount"))
+					->first();
+		
+		$debited 	= $dr_row == NULL ? 0 : $dr_row->amount;
+		$credited 	= $cr_row == NULL ? 0 : $cr_row->amount;
+		$balance 	= $debited - $credited;
+		
 		DB::table('ap_invoices')
-			->where('id',$this->invoiceId)
-			->update(['prev_adjustments'=>$balance]);
+				->where('id', $this->id())
+				->update([
+					'prev_adjustments'		=>		$balance,
+					]);
+		
 		$this->_addToTransactions();
 	}
 
 	private function _addToTransactions()
 	{
 		$row = DB::table('ap_invoices as i')
-				->leftJoin('ap_invoice_plans as p','i.id','=','p.invoice_id')
+				->join('ap_invoice_plans as p','i.id','=','p.invoice_id')
+				->leftJoin('ap_invoice_recurring_products as rp','i.id','=','rp.invoice_id')
+				->leftJoin('ap_invoice_non_recurring_products as nrp','i.id','=','nrp.invoice_id')
 				->where('i.id', $this->invoiceId)
-				->select(DB::raw('sum(amount) as amount'))
+				->select(DB::raw('sum(p.amount) as p_amount'), DB::raw('sum(p.tax) as p_tax'),
+					DB::raw('sum(rp.amount) as rp_amount'), DB::raw('sum(rp.tax) as rp_tax'),
+					DB::raw('sum(nrp.amount) as nrp_amount'), DB::raw('sum(nrp.tax) as nrp_tax'))
 				->first();
 				
 		DB::table('ap_transactions')
 			->insert([
 						'user_id'	=>	$this->account->user_id,
-						 'amount'	=>	$row->amount,
+						 'amount'	=>	($row->p_amount + $row->p_tax + $row->rp_amount + $row->rp_tax + $row->nrp_amount + $row->nrp_tax),
 						   'type'	=>	'dr',
 					 'created_at'	=>	date('Y-m-d H:i:s'),
 					'description'	=>	'invoice generated',
@@ -177,7 +193,7 @@ class NewInvoice {
 										  'invoice_number'	=>		$this->_makeInvoiceNumber(),
 										  		'user_id'	=>		$this->account->user_id,
 										  		'org_id'	=>		$this->account->org_id,
-											'generated_on'	=>		date('Y-m-d h:i:s'),
+											'generated_on'	=>		date('Y-m-d H:i:s'),
 									   'bill_period_start'	=>		$this->invoiceStartDate(),
 									    'bill_period_stop'	=>		$this->invoiceStopDate(),
 									]);
@@ -197,8 +213,7 @@ class NewInvoice {
 
 	private function _makeInvoiceStartDateObject()
 	{
-		$startDate = ( $this->account->billed_till == NULL 
-						|| $this->account->billed_till == '0000-00-00 00:00:00') ?
+		$startDate = ( ! isValidDate($this->account->billed_till) ) ?
 			  $this->_makeInvoiceStartDate() : date( 'Y-m-d', strtotime('+1 Day',strtotime($this->account->billed_till)) );
 		 $this->startDate = new Carbon(date('Y-m-d',strtotime($startDate)));
 	}

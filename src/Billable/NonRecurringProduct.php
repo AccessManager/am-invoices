@@ -7,6 +7,7 @@ use Carbon\Carbon;
 
 class NonRecurringProduct {
 
+	private $account;
 	private $product;
 	private $invoice;
 	private $startDate	= NULL;
@@ -38,6 +39,9 @@ class NonRecurringProduct {
 					'amount'			=>		$this->_amount(),
 					'tax'				=>		$this->_tax(),
 				]);
+		DB::table('ap_user_non_recurring_products')
+			->where('id', $this->product->id)
+			->delete();
 	}
 
 	public function __construct( $product, $invoice)

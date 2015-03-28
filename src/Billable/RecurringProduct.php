@@ -8,13 +8,13 @@ class RecurringProduct {
 
 	private $product;
 	private $invoice;
-	private $startDate 	= NULL;
-	private $stopDate	= NULL;
-	private $costPerDay = 0;
-	private $months 	= 0;
-	private $days 		= 0;
-	private $amount 	= 0;
-	private $tax 		= 0;
+	private $startDate 			= NULL;
+	private $stopDate			= NULL;
+	private $costPerDay 		= 0;
+	private $months 			= 0;
+	private $days 				= 0;
+	private $amount 			= 0;
+	private $tax 				= 0;
 	private $durationCalculated = FALSE;
 
 	private function _startDate()
@@ -46,7 +46,7 @@ class RecurringProduct {
 
 	private function _calculateAmount()
 	{
-		$this->amount = ($this->days * $this->costPerDay) + ($this->product->price * $this->months) + $this->tax;
+		$this->amount = ($this->days * $this->costPerDay) + ($this->product->price * $this->months);
 	}
 
 	private function _calculateCostPerDay()
@@ -90,6 +90,13 @@ class RecurringProduct {
 					'billed_till'	=>		$this->_stopDate(),
 					'amount'		=>		$this->_amount(),
 					'tax'			=>		$this->_tax(),
+					'rate'			=>		$this->product->price,
+				]);
+		DB::table('ap_user_recurring_products')
+			->where('id',$this->product->id)
+			->update([
+				'last_billed_on'	=> 	date('Y-m-d H:i:s'),
+				'billed_till'		=>	$this->_stopDate(),
 				]);
 	}
 
@@ -103,16 +110,19 @@ class RecurringProduct {
 
 	private function _makeStartStopDates()
 	{
-		$invoiceStartDate = $this->invoice->invoiceStartDateObject();
-		$productStartDate = new Carbon(date('Y-m-d', strtotime($this->product->assigned_on)));
-		$this->startDate = $productStartDate < $invoiceStartDate ? $invoiceStartDate : $productStartDate;
-
-		$expiry = $this->product->expiry;
-		if( $expiry == '0000-00-00 00:00:00' || $expiry == NULL)
+		if( ! isValidDate($this->product->last_billed_on) ) {
+			$invoiceStartDate = $this->invoice->invoiceStartDateObject();
+			$productStartDate = new Carbon( date('Y-m-d', strtotime($this->product->assigned_on)) );
+			$this->startDate = $productStartDate < $invoiceStartDate ? $invoiceStartDate : $productStartDate;			
+		} else {
+			$this->startDate = ( new Carbon( date('Y-m-d', strtotime($this->product->billed_till)) ) )->addDay();
+		}
+		
+		if( ! isValidDate($this->product->expiry) )
 			return $this->stopDate = $this->invoice->invoiceStopDateObject();
 
 		$invoiceStopDate = $this->invoice->invoiceStopDateObject();
-		$productStopDate = new Carbon(date('Y-m-d', strtotime($expiry)));
+		$productStopDate = new Carbon(date('Y-m-d', strtotime($this->product->expiry)));
 		$this->stopDate = $productStopDate < $invoiceStopDate ? $productStopDate : $invoiceStopDate;
 	}
 
