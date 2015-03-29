@@ -81,38 +81,6 @@ class NewInvoice {
 		}
 	}
 
-	public function applyAdjustments()
-	{
-		$last_bill_plan = DB::table( 'ap_invoice_plans as p' )
-								->join('ap_invoices as i','i.id','=','p.invoice_id')
-								->where('i.user_id', $this->account->user_id)
-								->where( 'invoice_id', '<', $this->invoiceId )
-								->orderby( 'p.billed_till','DESC' )
-								->select( 'p.billed_from', 'p.billed_till','p.rate' )
-								->first();
-
-		//if the previous bill doesnot exists, simply return. No adjustments applied.
-		if( $last_bill_plan == NULL )		return;
-
-		//apply discount based on active service plan.
-		$discount = new PlanDiscount( $this->activePlan, $last_bill_plan, $this->account );
-		$discount->apply();
-
-		//fetch changed plans to calculate & apply discounts.
-		$changedPlans = DB::table('ap_change_history as h')
-								->where('h.user_id',$this->account->user_id)
-								->orderby('h.from_date','ASC')
-								->select('h.id','h.from_date','h.to_date','h.plan_name','h.price','h.tax_rate')
-								->get();
-
-		// apply discounts if the query returned results.
-		if( count($changedPlans) )
-		foreach( $changedPlans as $plan) {
-			$discount = new PlanDiscount( $plan, $last_bill_plan, $this );
-			$discount->apply();
-		}
-	}
-
 	public function addProducts()
 	{
 		$products = Product::getInvoiceableProducts( $this->account, $this );
@@ -165,18 +133,21 @@ class NewInvoice {
 				->leftJoin('ap_invoice_recurring_products as rp','i.id','=','rp.invoice_id')
 				->leftJoin('ap_invoice_non_recurring_products as nrp','i.id','=','nrp.invoice_id')
 				->where('i.id', $this->invoiceId)
-				->select(DB::raw('sum(p.amount) as p_amount'), DB::raw('sum(p.tax) as p_tax'),
+				->select(
+					DB::raw('sum(p.amount) as p_amount'), DB::raw('sum(p.tax) as p_tax'),
 					DB::raw('sum(rp.amount) as rp_amount'), DB::raw('sum(rp.tax) as rp_tax'),
-					DB::raw('sum(nrp.amount) as nrp_amount'), DB::raw('sum(nrp.tax) as nrp_tax'))
+					DB::raw('sum(nrp.amount) as nrp_amount'), DB::raw('sum(nrp.tax) as nrp_tax'),
+					'i.invoice_number'
+					)
 				->first();
 				
 		DB::table('ap_transactions')
 			->insert([
-						'user_id'	=>	$this->account->user_id,
-						 'amount'	=>	($row->p_amount + $row->p_tax + $row->rp_amount + $row->rp_tax + $row->nrp_amount + $row->nrp_tax),
-						   'type'	=>	'dr',
-					 'created_at'	=>	date('Y-m-d H:i:s'),
-					'description'	=>	'invoice generated',
+		'user_id'	=>	$this->account->user_id,
+		 'amount'	=>	($row->p_amount + $row->p_tax + $row->rp_amount + $row->rp_tax + $row->nrp_amount + $row->nrp_tax),
+		   'type'	=>	'dr',
+	 'created_at'	=>	date('Y-m-d H:i:s'),
+	'description'	=>	"invoice generated.({$row->invoice_number})",
 				]);
 	}
 
