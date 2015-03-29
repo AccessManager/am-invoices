@@ -9,20 +9,18 @@
 			}
 		],
 	"require" : {
-		"php" : ">=5.4",
-		"illuminate/database" : "*",
-		"symfony/console"	: "*",
-		"symfony/process"	: "*",
-		"nesbot/carbon"		: "*"
+							  "php" 	: ">=5.4",
+			  "illuminate/database" 	: "*",
+				  "symfony/console"		: "*",
+				  "symfony/process"		: "*",
+					"nesbot/carbon"		: "*",
+		"access-manager/am-helpers" 	: "0.*",
+	  "access-manager/am-constants" 	: "0.*"
 		},
 	"autoload" : {
 			"psr-4" : {
 				"AccessManager\\Invoices\\" : "src"
-				},
-			"files" : [
-				"src/Helpers/Helpers.php",
-				"src/Helpers/Constants.php"
-			]
+				}
 		},
 	"config": {
 		"preferred-install": "dist"
