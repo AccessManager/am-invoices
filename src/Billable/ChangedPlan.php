@@ -32,7 +32,6 @@ class ChangedPlan implements BillableInterface {
 	}
 	public function amount()
 	{
-		// if( ! $this->_isChargeable() )		return 0;
 		$this->_calculateDuration();
 		$this->_calculateCostPerDay();
 		$this->_calculateAmount();
@@ -77,7 +76,7 @@ class ChangedPlan implements BillableInterface {
 		if( $d->format('%m') > 0 ) {
 			while( $stopDate > $this->startDate ) {
 				
-				if ($stopDate->format('m') <= $this->startDate->format('m') )		
+				if ($stopDate->format('Y') <= $this->startDate->format('Y') && $stopDate->format('m') <= $this->startDate->format('m') )		
 					break;
 
 				$stopDate->subMonth();
@@ -93,14 +92,6 @@ class ChangedPlan implements BillableInterface {
 	private function _calculateAdjustment()
 	{
 		if( $this->adjustment )		return;
-
-		// $last_bill_plan = DB::table( 'ap_invoice_plans as p' )
-		// 					->join('ap_invoices as i','i.id','=','p.invoice_id')
-		// 					->where('i.user_id', $this->invoice->account->user_id)
-		// 					->where( 'invoice_id', '<', $this->invoice->id() )
-		// 					->orderby( 'p.billed_till','DESC' )
-		// 					->select( 'p.billed_from', 'p.billed_till','p.rate' )
-		// 					->first();
 
 		if( $this->lastBillActivePlan == NULL )		return;
 
@@ -126,18 +117,6 @@ class ChangedPlan implements BillableInterface {
 		$this->adjustment = ( $this->lastBillActivePlan->rate * $gap->format('%m') + $costPerDay * $gap->format('%d') );
 
 	}
-
-	// private function _isChargeable()
-	// {
-	// 	if( $this->lastBillActivePlan == NULL )		return TRUE;
-
-	// 	if(  
-	// 			( new Carbon( $this->lastBillActivePlan->billed_till )  ) > ( new Carbon( $this->plan->to_date )  )
-
-	// 		)	return FALSE;
-
-	// 	return TRUE;
-	// }
 
 	public function addToInvoice()
 	{
