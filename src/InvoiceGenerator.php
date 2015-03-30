@@ -25,7 +25,7 @@ class InvoiceGenerator {
 				->join( 'user_accounts as u','u.id','=','bc.user_id' )
 				->where( 'bc.bill_date',date('d') )
 				->where( 'u.status','!=', TERMINATED )
-				->where( 'plan_type', ADVANCEPAID_PLAN )
+				->where( 'u.plan_type', ADVANCEPAID_PLAN )
 				->where(function($query){
 					$query
 							->where(function($query){
