@@ -21,8 +21,11 @@ class InvoiceGenerator {
 	public function fetchActiveAccounts()
 	{
 		$q = DB::table('billing_cycles as bc')
-				->join('ap_active_plans as ap','ap.user_id','=','bc.user_id')
-				->where('bc.bill_date',date('d'))
+				->join( 'ap_active_plans as ap','ap.user_id','=','bc.user_id' )
+				->join( 'user_accounts as u','u.id','=','bc.user_id' )
+				->where( 'bc.bill_date',date('d') )
+				->where( 'u.status','!=', TERMINATED )
+				->where( 'plan_type', ADVANCEPAID_PLAN )
 				->where(function($query){
 					$query
 							->where(function($query){
