@@ -2,8 +2,8 @@
 namespace AccessManager\Invoices;
 use Illuminate\Database\Capsule\Manager as DB;
 use AccessManager\Invoices\Helpers\Database;
-use AccessManager\Invoices\billable\NonRecurringProduct;
-use AccessManager\Invoices\billable\RecurringProduct;
+use AccessManager\Invoices\Billable\NonRecurringProduct;
+use AccessManager\Invoices\Billable\RecurringProduct;
 use AccessManager\Invoices\Billable\ChangedRecurringProduct;
 use Carbon\Carbon;
 
