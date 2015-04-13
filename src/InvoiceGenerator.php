@@ -2,6 +2,7 @@
 namespace AccessManager\Invoices;
 use Illuminate\Database\Capsule\Manager as DB;
 use AccessManager\Invoices\Helpers\Database;
+use Carbon\Carbon;
 use DateTime;
 
 class InvoiceGenerator {
@@ -24,7 +25,6 @@ class InvoiceGenerator {
 				->join( 'ap_active_plans as ap','ap.user_id','=','bc.user_id' )
 				->join( 'user_accounts as u','u.id','=','bc.user_id' )
 				->where( 'bc.bill_date',date('d') )
-				->where('ap.assigned_on','<=',date('Y-m-d H:i:s'))
 				->where( 'u.status','!=', TERMINATED )
 				->where( 'u.plan_type', ADVANCEPAID_PLAN )
 				->where(function($query){
@@ -37,10 +37,9 @@ class InvoiceGenerator {
 				})
 				->select('bc.billing_cycle','bc.billing_unit','bc.org_id','bc.last_billed_on',
 					'bc.billed_till','bc.expiration','bc.bill_duration_type'
-					,'ap.assigned_on','ap.user_id');
+					,'ap.assigned_on','ap.user_id','u.uname');
 
 		$this->activeAccounts = $q->get();
-		print_r($this->activeAccounts);
 		return $this;
 	}
 
@@ -50,7 +49,10 @@ class InvoiceGenerator {
 			if( is_null($account->last_billed_on) 
 					|| ( $this->_billingCycleCompleted($account) && ! $this->_generatedThisMonth($account) )
 				) {
-				$this->invoiceableAccounts[] = $account;
+
+				if( ! $this->_isNewAccount( $account ) ) {
+					$this->invoiceableAccounts[] = $account;
+				}
 			}
 		}
 		return $this;
@@ -76,6 +78,24 @@ class InvoiceGenerator {
 		$last_generated_on_timestamp = strtotime(date('Y-m', strtotime($account->last_billed_on)));
 		$this_month = strtotime(date('Y-m'));
 		return $last_generated_on_timestamp == $this_month;
+	}
+
+	private function _isNewAccount( $account )
+	{
+		$activePlanAssignedOn = strtotime( $account->assigned_on );
+		
+		if( $activePlanAssignedOn < time() )	return FALSE;
+
+		$changedPlans = DB::table('ap_change_history as ch')
+							->where('user_id', $account->user_id)
+							->get();
+							
+		return (count($changedPlans) > 0 ) ? FALSE : TRUE;	
+		// if ( count($changedPlans) > 0 ) {
+		// 	return FALSE;
+		// }  else {
+		// 	return TRUE;
+		// }
 	}
 
 	private function _billingCycleCompleted($account)
