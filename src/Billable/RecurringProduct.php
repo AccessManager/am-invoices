@@ -55,30 +55,94 @@ class RecurringProduct {
 		$this->costPerDay = number_format( (float) $cost_per_day,2,'.','');
 	}
 
-	private function _calculateDuration()
+private function _calculateDuration()
 	{
 		if( $this->durationCalculated )		return;
 
 		$stopDate = clone $this->stopDate;
-		$stopDate->addDay();
+		$stopDate->addDays(2);
+		$d = $stopDate->diff( $this->startDate );
+		if( $d->format('%d') == 1 ) {
+			$this->_calculateDurationFull($stopDate);
+		} else {
+			$this->_calculateDurationDays($stopDate);
+		}
+		$this->durationCalculated = TRUE;
+	}
 
+	private function _calculateDurationDays( Carbon $stopDate )
+	{
 		$d = $stopDate->diff($this->startDate);
-
-		if( $d->format('%m') > 0 ) {
+		
+		if( $d->format('%m') > 0 || $d->format('%y') > 0 ) {
+			
 			while( $stopDate > $this->startDate ) {
+				
+				++$this->months;
 				$stopDate->subMonth();
-				$this->months++;
+
 				$startMonth = $this->startDate->format('m');
-				if ($stopDate->format('m') <= ++$startMonth )
+				if ($stopDate->format('Y') <= $this->startDate->format('Y') && $stopDate->format('m') <= ++$startMonth )
 					break;
 			}
 		}
-		$diff = $stopDate->diff($this->startDate);
+		while( $stopDate <= $this->startDate ){
+			$stopDate->addMonth();
+		}
+		if( $d->format('%d') == 0 ) {
+			$stopDate->subDays(2);
+		} else {
+			$stopDate->subDay();
+		}
 		
+		$diff = $this->startDate->diff($stopDate);
 		$this->days = $diff->format('%d');
-
-		$this->durationCalculated = TRUE;
 	}
+
+	private function _calculateDurationFull( Carbon $stopDate )
+	{
+		$d = $stopDate->diff($this->startDate);
+		if( $d->format('%m') > 0 || $d->format('%y') > 0 ) {
+
+			while( $stopDate > $this->startDate ) {
+				
+				++$this->months;
+				$stopDate->subMonth();
+				
+				$startMonth = $this->startDate->format('m');
+				if ($stopDate->format('Y') <= $this->startDate->format('Y') && $stopDate->format('m') <= $startMonth )
+					break;
+			}
+		}
+		$stopDate->subDay();
+		$diff = $this->startDate->diff($stopDate);
+		$this->days = $diff->format('%d');
+	}
+
+	// private function _calculateDuration()
+	// {
+	// 	if( $this->durationCalculated )		return;
+
+	// 	$stopDate = clone $this->stopDate;
+	// 	$stopDate->addDay();
+
+	// 	$d = $stopDate->diff($this->startDate);
+
+	// 	if( $d->format('%m') > 0 ) {
+	// 		while( $stopDate > $this->startDate ) {
+	// 			$stopDate->subMonth();
+	// 			$this->months++;
+	// 			$startMonth = $this->startDate->format('m');
+	// 			if ($stopDate->format('m') <= ++$startMonth )
+	// 				break;
+	// 		}
+	// 	}
+	// 	$diff = $stopDate->diff($this->startDate);
+		
+	// 	$this->days = $diff->format('%d');
+
+	// 	$this->durationCalculated = TRUE;
+	// }
 
 	public function addToInvoice()
 	{
