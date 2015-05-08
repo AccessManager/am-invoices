@@ -24,7 +24,7 @@ class InvoiceGenerator {
 				->join( 'ap_active_plans as ap','ap.user_id','=','bc.user_id' )
 				->join( 'user_accounts as u','u.id','=','bc.user_id' )
 				->where( 'bc.bill_date',date('d') )
-				->where('ap.assigned_on','<',date('Y-m-d'))
+				->where('ap.assigned_on','<=',date('Y-m-d H:i:s'))
 				->where( 'u.status','!=', TERMINATED )
 				->where( 'u.plan_type', ADVANCEPAID_PLAN )
 				->where(function($query){
@@ -40,6 +40,7 @@ class InvoiceGenerator {
 					,'ap.assigned_on','ap.user_id');
 
 		$this->activeAccounts = $q->get();
+		print_r($this->activeAccounts);
 		return $this;
 	}
 
