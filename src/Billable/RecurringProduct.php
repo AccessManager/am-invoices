@@ -78,13 +78,6 @@ class RecurringProduct {
 		$this->days = $diff->format('%d');
 
 		$this->durationCalculated = TRUE;
-
-		echo "<br />",
-			"Product Duration Start Date: ", $this->startDate->format('Y-m-d'),
-			'<br/>',
-			'Product Duration Stop Date: ', $stopDate->format('Y-m-d');
-		;
-		echo '<br/>' . $this->months . "Months " . $this->days . "Days. <br />";
 	}
 
 	public function addToInvoice()

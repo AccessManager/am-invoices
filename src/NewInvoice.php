@@ -278,10 +278,6 @@ class NewInvoice {
 		$this->account = $account;
 		Database::connect();
 		$this->_fetchActivePlan();
-
-		echo "Invoice Start Date: " . $this->invoiceStartDate() . "<br />";
-		echo "Invoice Stop Date: " . $this->invoiceStopDate() . '<br />';
-		
 		$this->_generateBlankInvoice();
 	}
 

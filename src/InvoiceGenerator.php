@@ -2,7 +2,6 @@
 namespace AccessManager\Invoices;
 use Illuminate\Database\Capsule\Manager as DB;
 use AccessManager\Invoices\Helpers\Database;
-// use AccessManager\Invoices\Invoice;
 use DateTime;
 
 class InvoiceGenerator {
@@ -23,7 +22,6 @@ class InvoiceGenerator {
 	{
 		$q = DB::table('billing_cycles as bc')
 				->join('ap_active_plans as ap','ap.user_id','=','bc.user_id')
-				// ->leftJoin('ap_payments_due as d','d.user_id','=','ap.user_id')
 				->where('bc.bill_date',date('d'))
 				->where(function($query){
 					$query
@@ -38,7 +36,6 @@ class InvoiceGenerator {
 					,'ap.assigned_on','ap.user_id');
 
 		$this->activeAccounts = $q->get();
-		// pr($this->activeAccounts);
 		return $this;
 	}
 
@@ -65,7 +62,6 @@ class InvoiceGenerator {
 				$newInvoice->addPlans();
 				$newInvoice->addProducts();
 				$newInvoice->finalize();
-				// $newInvoice->addToTransactions();
 			});
 		}
 	}
