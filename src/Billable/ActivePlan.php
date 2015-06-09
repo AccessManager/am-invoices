@@ -104,15 +104,17 @@ class ActivePlan implements BillableInterface {
 		$stopDate->addDay();
 
 		$d = $stopDate->diff($this->startDate);
-
-		if( $d->format('%m') > 0 ) {
-			while( $stopDate > $this->startDate ) {
+		if( $d->format('%m') > 0 || $d->format('%y') > 0 ) {
+			while( $stopDate >= $this->startDate ) {
 				
-				if ($stopDate->format('Y') <= $this->startDate->format('Y') && $stopDate->format('m') <= $this->startDate->format('m') )		
-					break;
-
 				$stopDate->subMonth();
 				$this->months++;
+
+				$startMonth = $this->startDate->format('m');
+				if ($stopDate->format('Y') <= $this->startDate->format('Y') && $stopDate->format('m') <= ++$startMonth )
+					break;
+
+
 			}
 		}
 		$diff = $this->startDate->diff($stopDate);
@@ -158,16 +160,14 @@ class ActivePlan implements BillableInterface {
 		$planStartDate 		= new Carbon(date('Y-m-d', strtotime($this->plan->assigned_on)));
 
 		if( is_null($lastInvoice) ) {
-			$this->startDate = $planStartDate < $invoiceStartDate ? $planStartDate : $invoiceStartDate;
-			
+			$this->startDate = ( $planStartDate <= $invoiceStartDate ) ? $planStartDate : $invoiceStartDate;
 		} else {
 			$lastInvoiceStartDate = new Carbon( $lastInvoice->bill_period_start );
 			$planStartDate = new Carbon(date('Y-m-d', strtotime($this->plan->assigned_on)));
-			if( $planStartDate < $lastInvoiceStartDate ) {
+			if( $planStartDate <= $lastInvoiceStartDate ) {
 				$this->startDate = $invoiceStartDate;
 			} else {
-				$this->startDate = $planStartDate < $invoiceStartDate ? $planStartDate : $invoiceStartDate;
-				
+				$this->startDate = ( $planStartDate <= $invoiceStartDate ) ? $planStartDate : $invoiceStartDate;
 			}
 		}
 		$this->stopDate = $this->invoice->invoiceStopDateObject();
